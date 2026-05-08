@@ -1,0 +1,14 @@
+__pycache__
+.idea
+.ipynb_checkpoints
+.venv
+venv
+logs
+
+infra/docker-compose/docker/airflow/config
+infra/docker-compose/docker/airflow/dags
+infra/docker-compose/docker/airflow/logs
+infra/docker-compose/docker/airflow/plugins
+infra/docker-compose/docker/airflow/airflow.cfg
+infra/docker-compose/docker/airflow/airflow-webserver.pid
+infra/docker-compose/docker/airflow/webserver_config.py

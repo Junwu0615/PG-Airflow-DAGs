@@ -1,4 +1,4 @@
-from config import *
+from configs import *
 
 class BaseDagConfig:
     default_args = {

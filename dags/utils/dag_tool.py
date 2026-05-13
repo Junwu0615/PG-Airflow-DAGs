@@ -1,5 +1,5 @@
-from config import *
-from config.dag_config import BaseDagConfig
+from configs import *
+from configs.dag_config import BaseDagConfig
 
 
 # TODO 常用動態變數

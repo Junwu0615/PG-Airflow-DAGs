@@ -61,4 +61,12 @@ tree -d -I 'venv|.git|__pycache__|docs|logs|assets|kafka_data'
 </ul>
 </details>
 
+<br>
+
+### *B.　Dev Tools*
+```bash
+cd ../PG-Infrastructure/infra/docker-compose
+make copy-dag
+```
+
 <br><br><br>

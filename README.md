@@ -71,7 +71,7 @@ make copy-dag
 
 <br>
 
-### *C.1.　[ Manual ] Before Push Code*
+### *C.1.　[ Manual - Not Recommended ] Before Push Code*
 ```bash
 # <語法格式版本>
 black --version
@@ -99,6 +99,9 @@ black dags/
 
 # ⭐ 當前專案的 Git 與 pre-commit 工具正式綁定
 pre-commit install
+
+# ⭐ 強制檢查
+pre-commit run --all-files
 ```
 
 <br><br><br>

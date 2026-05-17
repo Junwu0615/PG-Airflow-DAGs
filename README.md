@@ -71,7 +71,7 @@ make copy-dag
 
 <br>
 
-### *C.1.　[ Manual - Not Recommended ] Before Push Code*
+### *C.1.　[ Manual - Not Recommended ]　Before Push Code*
 ```bash
 # <語法格式版本>
 black --version
@@ -85,7 +85,7 @@ black dags/
 
 <br>
 
-### *⭐ C.2.　[ Auto - Global Var ] Just Push Code*
+### *⭐ C.2.　[ Auto - Global Var ]　Just Push Code*
 ```bash
 # 全域設定 ( 一次性 )
     # 1. 透過 Ubuntu 系統套件管理員安裝 pipx

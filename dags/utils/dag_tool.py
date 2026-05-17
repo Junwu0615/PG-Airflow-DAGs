@@ -18,9 +18,12 @@ def __getattr__(name: str):
     always：完全沒有依賴關係，可以隨時運行此任務
     """
     _common_tasks = {
-        'START': {'task_id': 'START', 'trigger_rule': 'all_success'},
-        'END': {'task_id': 'END', 'trigger_rule': 'none_failed_min_one_success'},
-        'SKIP_BRANCH': {'task_id': 'END', 'trigger_rule': 'none_failed_min_one_success'},
+        "START": {"task_id": "START", "trigger_rule": "all_success"},
+        "END": {"task_id": "END", "trigger_rule": "none_failed_min_one_success"},
+        "SKIP_BRANCH": {
+            "task_id": "END",
+            "trigger_rule": "none_failed_min_one_success",
+        },
     }
     if name in _common_tasks:
         return EmptyOperator(**_common_tasks[name])
@@ -30,17 +33,19 @@ def __getattr__(name: str):
 
 # TODO 常用函式
 def check_parameters(**kwargs) -> dict:
-    dag_run = kwargs.get('dag_run').conf if kwargs.get('dag_run') is not None else {}
-    parameters = {**kwargs.get('params', {}), **dag_run}
+    dag_run = kwargs.get("dag_run").conf if kwargs.get("dag_run") is not None else {}
+    parameters = {**kwargs.get("params", {}), **dag_run}
 
-    logging.warning(f'DAG_ID: {kwargs.get('DAG_ID', None)}')
-    logging.warning(f'SCHEDULE: {kwargs.get('SCHEDULE', None)}')
-    logging.warning(f'PARAMETERS: {parameters}')
+    logging.warning(f'DAG_ID: {kwargs.get("DAG_ID", None)}')
+    logging.warning(f'SCHEDULE: {kwargs.get("SCHEDULE", None)}')
+    logging.warning(f"PARAMETERS: {parameters}")
 
     return parameters
 
 
-def create_dag(dag_id: str, schedule=None, owner: str=None, params: dict=None, **kwargs) -> DAG:
+def create_dag(
+    dag_id: str, schedule=None, owner: str = None, params: dict = None, **kwargs
+) -> DAG:
     """
     TODO
         - schedule 格式 ( Cron Expression )
@@ -58,30 +63,30 @@ def create_dag(dag_id: str, schedule=None, owner: str=None, params: dict=None, *
     dag_args = {**dag_args, **kwargs}
 
     # 任務擁有者
-    default_args['owner'] = default_args['owner'] if owner is None else owner
+    default_args["owner"] = default_args["owner"] if owner is None else owner
 
     # 自定義選單
-    default_args['params'] = default_args['params'] if params is None else params
+    default_args["params"] = default_args["params"] if params is None else params
 
     dag_config = {
         **dag_args,
-        'default_args': default_args,
+        "default_args": default_args,
         # 'render_template_as_native_obj': True, # 讓 params 型別更精準
     }
     return DAG(dag_id=dag_id, schedule=schedule, **dag_config)
 
 
-def get_value(key: str=None, read_bool: bool=False, **kwargs):
-    dag_run = kwargs.get('dag_run').conf if kwargs.get('dag_run') is not None else {}
-    parameters = {**kwargs.get('params', {}), **dag_run}
-    logging.info(f'parameters: {parameters}')
+def get_value(key: str = None, read_bool: bool = False, **kwargs):
+    dag_run = kwargs.get("dag_run").conf if kwargs.get("dag_run") is not None else {}
+    parameters = {**kwargs.get("params", {}), **dag_run}
+    logging.info(f"parameters: {parameters}")
 
     ret = parameters.get(key, None)
-    logging.info(f'USE KEY & GET VAL FROM PARAMETERS: {ret}')
+    logging.info(f"USE KEY & GET VAL FROM PARAMETERS: {ret}")
 
     if read_bool:
-        path = Path(f'/opt/airflow/dags/sql/{parameters.get('path')}/{ret}.sql')
-        logging.warning(f'READ Path: {path}')
+        path = Path(f'/opt/airflow/dags/sql/{parameters.get("path")}/{ret}.sql')
+        logging.warning(f"READ Path: {path}")
         return path.read_text()
 
     return ret
@@ -95,8 +100,8 @@ def verify_dataset_integrity(dataset_obj, event_list) -> bool:
     last_event = event_list[-1]
     metadata = last_event.extra or {}
 
-    if metadata.get('status') != 'SUCCESS' or not metadata.get('actual_finish_time'):
-        logging.error(f'Signature verification failed for Dataset: {dataset_obj.uri}')
+    if metadata.get("status") != "SUCCESS" or not metadata.get("actual_finish_time"):
+        logging.error(f"Signature verification failed for Dataset: {dataset_obj.uri}")
         return False
 
     return True
@@ -104,8 +109,8 @@ def verify_dataset_integrity(dataset_obj, event_list) -> bool:
 
 def update_dataset_status(dag_dataset: Dataset, **kwargs):
     """TODO 完成任務登記數位簽章"""
-    kwargs['outlet_events'][dag_dataset].extra = {
-        'status': 'SUCCESS',
-        'data_date': kwargs['ds'],
-        'actual_finish_time': timezone.utcnow().isoformat() # 使用 Airflow 統一時間 (UTC)
+    kwargs["outlet_events"][dag_dataset].extra = {
+        "status": "SUCCESS",
+        "data_date": kwargs["ds"],
+        "actual_finish_time": timezone.utcnow().isoformat(),  # 使用 Airflow 統一時間 (UTC)
     }

@@ -5,23 +5,24 @@ TODO
     # from airflow.operators.python import PythonOperator
     # from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 """
+
 from configs import *
 from configs.constants import WF_B_STATUS
 from utils.dag_tool import create_dag, check_parameters, update_dataset_status
 
 
 # TODO  Settings Configuration
-DAG_ID = 'WF_B_DATASET'
+DAG_ID = "WF_B_DATASET"
 SCHEDULE = None
-TAGS = ['WF', 'DATASET']
+TAGS = ["WF", "DATASET"]
 
 
 dag = create_dag(
     dag_id=DAG_ID,
     schedule=SCHEDULE,
-    owner='PC',
+    owner="PC",
     **{
-        'tags': TAGS,
+        "tags": TAGS,
     }
 )
 
@@ -29,20 +30,20 @@ with dag:
     from utils.dag_tool import START, END
 
     CHECK_PARAMETERS = PythonOperator(
-        task_id='CHECK_PARAMETERS',
+        task_id="CHECK_PARAMETERS",
         python_callable=check_parameters,
         op_kwargs={
-            'DAG_ID': DAG_ID,
-            'SCHEDULE': SCHEDULE,
-        }
+            "DAG_ID": DAG_ID,
+            "SCHEDULE": SCHEDULE,
+        },
     )
     UPDATE_DATASET_STATUS = PythonOperator(
-        task_id='UPDATE_DATASET_STATUS',
+        task_id="UPDATE_DATASET_STATUS",
         python_callable=update_dataset_status,
         op_kwargs={
-            'dag_dataset': WF_B_STATUS, # TODO 關鍵 1
+            "dag_dataset": WF_B_STATUS,  # TODO 關鍵 1
         },
-        outlets=[WF_B_STATUS] # TODO 關鍵 2：成功後觸發 Dataset 更新
+        outlets=[WF_B_STATUS],  # TODO 關鍵 2：成功後觸發 Dataset 更新
     )
 
     START >> CHECK_PARAMETERS >> UPDATE_DATASET_STATUS >> END

@@ -69,4 +69,16 @@ cd ../PG-Infrastructure/infra/docker-compose
 make copy-dag
 ```
 
+<br>
+
+### *C.　Before Push Code*
+```bash
+# <語法格式檢查>
+black dags/
+
+# 期望輸出
+# All done! ✨ 🍰 ✨
+# ?? files left unchanged.
+```
+
 <br><br><br>

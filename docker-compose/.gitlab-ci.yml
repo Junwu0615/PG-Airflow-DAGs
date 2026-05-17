@@ -12,11 +12,11 @@ variables:
   PYTHON_IMAGE: "python:3.12-slim"
 
   # 指定 Docker-in-Docker 版本（Build 階段使用）
-  DOCKER_IMAGE: "airflow_dags:v1"
-  DOCKER_DIND_IMAGE: "airflow_dags:v1-dind"
+  DOCKER_IMAGE: "airflow-dags:v1"
+  DOCKER_DIND_IMAGE: "airflow-dags:v1-dind"
 
   # 專案映像檔名稱
-  IMAGE_NAME: "airflow_dags"
+  IMAGE_NAME: "airflow-dags"
 
   # 透過 GitLab 變數控管 Registry 位址，預設可先給定本地或測試環境 IP
   REGISTRY_HOST: "127.0.0.1:5100"
@@ -38,12 +38,14 @@ lint:python:
   image: $PYTHON_IMAGE
   before_script:
     - python -V
-    - pip install --cache-dir .cache/pip flake8 black
+    - pip install pre-commit
+
   script:
-    # 使用 black 檢查排版是否符合規範 (--check 不會直接修改檔案)
-    - black --check dags/
-    # 使用 flake8 進行語法與潛在 Bug 檢查 (忽略排版衝突，專注在語法錯誤)
-    - flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+    # 1. pre-commit 內部需要 git 指令來判斷哪些檔案有改動
+    - which git || (apt-get update && apt-get install -y git)
+    # 2. 執行 pre-commit 檢查所有檔案（會自動依照 yaml 檔下載 24.2.0 的 black 與 7.0.0 的 flake8）
+    - pre-commit run --all-files
+
   allow_failure: false # 若檢查不通過，直接阻斷後續 Pipeline
 
 # ==========================================

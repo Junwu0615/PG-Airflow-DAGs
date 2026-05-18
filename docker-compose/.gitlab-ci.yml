@@ -22,7 +22,7 @@ variables:
   # 專案映像檔名稱
   IMAGE_NAME: "airflow-dags"
 
-  # 透過 GitLab 變數控管 Registry 位址，預設可先給定本地或測試環境 IP
+  # 透過 GitLab 變數控管 Registry 位址
   REGISTRY_HOST: "127.0.0.1:5100"
 
 
@@ -64,7 +64,7 @@ test:unit:
   stage: test
   image: $PYTHON_IMAGE
   before_script:
-    # 確保系統裝有 sqlite（Airflow 測試必備底層依賴）
+    # sqlite => Airflow 測試底層依賴
     - apt-get update && apt-get install -y sqlite3 libsqlite3-dev
     - pip install --cache-dir .cache/pip -r requirements.txt
     - pip install --cache-dir .cache/pip pytest pytest-cov

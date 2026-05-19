@@ -4,7 +4,7 @@
 stages:
   - lint       # 程式碼品質與靜態檢查
   - test       # 單元測試與整合測試
-#  - build      # 打包成 Docker 映像檔並推送到 Registry
+  - build      # 打包成映像檔並推送到 Registry
 #  - deploy     # 部署到測試或生產環境
 
 
@@ -15,15 +15,17 @@ variables:
   # 指定 Python 基礎映像檔版本
   PYTHON_IMAGE: "python:3.12-slim"
 
-  # 指定 Docker-in-Docker 版本（Build 階段使用）
-  DOCKER_IMAGE: "airflow-dags:v1"
-  DOCKER_DIND_IMAGE: "airflow-dags:v1-dind"
+  # 指定 Docker-in-Docker 版本（ Build 階段 ）
+  DOCKER_IMAGE: "docker:24.0.5"
+  DOCKER_DIND_IMAGE: "docker:24.0.5-dind"
 
   # 專案映像檔名稱
   IMAGE_NAME: "airflow-dags"
+  IMAGE_TAG: "v1"
 
   # 透過 GitLab 變數控管 Registry 位址
-  REGISTRY_HOST: "127.0.0.1:5100"
+#  REGISTRY_HOST: "host.docker.internal:5100"
+  REGISTRY_HOST: "192.168.0.15:5100"
 
 
 # ==========================================
@@ -39,7 +41,7 @@ cache:
 
 
 # ==========================================
-# 1. Lint Stage (程式碼品質把關)
+# 1. Lint Stage (程式碼品質檢查)
 # ==========================================
 lint:python:
   stage: lint
@@ -56,6 +58,7 @@ lint:python:
     - pre-commit run --all-files
 
   allow_failure: false # 若檢查不通過，直接阻斷後續 Pipeline
+
 
 # ==========================================
 # 2. Test Stage (自動化測試)
@@ -91,82 +94,84 @@ test:unit:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
 
+
 # ==========================================
-# 3. Build Stage (容器化 + 推送)
+# 3. Build Stage (容器化 + 推送至 Registry)
 # ==========================================
-#build:docker:
-#  stage: build
-#  image: $DOCKER_IMAGE
-#  services:
-#    - name: $DOCKER_DIND_IMAGE
-#      alias: docker
-#  variables:
-#    # 解決 DIND 環境下的 TLS 認證問題
-#    DOCKER_TLS_CERTDIR: ""
-#  before_script:
-#    echo "Starting Docker Build Pipeline..."
-#  script:
-#    # 定義 Tag 名稱：如果是 Main 分支就用 v${版本} 或 Commit SHA，其餘用 Branch 名稱
-#    - |
-#      if [ "$CI_COMMIT_BRANCH" == "main" ]; then
-#        IMAGE_TAG=$CI_COMMIT_SHORT_SHA
-#      else
-#        IMAGE_TAG=$CI_COMMIT_REF_SLUG
-#      fi
-#    - FULL_IMAGE_PATH="$REGISTRY_HOST/$IMAGE_NAME:$IMAGE_TAG"
-#
-#    # 1. 進行 Docker Build
-#    - docker build -t $FULL_IMAGE_PATH .
-#
-#    # 2. 推送到私有 Registry
-#    - docker push $FULL_IMAGE_PATH
-#
-#    # 3. 同時留下一份帶有 Commit SHA 的 Tag 作為版本追蹤紀錄
-#    - docker tag $FULL_IMAGE_PATH "$REGISTRY_HOST/$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
-#    - docker push "$REGISTRY_HOST/$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
-#  rules:
-#    - if: '$CI_COMMIT_BRANCH == "main"'
-#    - if: '$CI_COMMIT_BRANCH == "develop"'
-#
-## ==========================================
-## 4. Deploy Stage (自動化部署)
-## ==========================================
+build:docker:
+  stage: build
+  image: $DOCKER_IMAGE
+  services:
+    - name: $DOCKER_DIND_IMAGE
+      alias: docker
+      command: ["--insecure-registry=host.docker.internal:5100"]
+  variables:
+    # 解決 DIND 環境下的 TLS 認證問題
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: "tcp://docker:2375"
+  before_script:
+    # 如果你的私有 Registry 需要登入，請在這裡填寫（若無則免）
+    # - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $REGISTRY_HOST
+    - echo "Starting Docker Build Pipeline..."
+    # [等待機制] 確保 Docker Daemon 真的活過來了才往下走
+    - |
+      echo "⏳ 等待 Docker Daemon 啟動..."
+      for i in $(seq 1 30); do
+        if docker info >/dev/null 2>&1; then
+          echo "✅ Docker Daemon 已成功就緒！"
+          break
+        fi
+        echo "..."
+        sleep 1
+      done
+  script:
+    # 定義 Tag 名稱：Main 分支用 Commit SHA，其餘分支用分支 slug 名稱
+    - |
+      if [ "$CI_COMMIT_BRANCH" == "main" ]; then
+        IMAGE_TAG=$CI_COMMIT_SHORT_SHA
+      else
+        IMAGE_TAG=$CI_COMMIT_REF_SLUG
+      fi
+    - FULL_IMAGE_PATH="$REGISTRY_HOST/$IMAGE_NAME:$IMAGE_TAG"
+
+    # 1. 進行 Docker Build
+    - docker build -t $FULL_IMAGE_PATH .
+
+    # 2. 推送到私有 Registry
+    - docker push $FULL_IMAGE_PATH
+
+    # 3. 同時留下一份帶有最新 Commit SHA 的 Tag 作為版本歷史追蹤紀錄
+    - docker tag $FULL_IMAGE_PATH "$REGISTRY_HOST/$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+    - docker push "$REGISTRY_HOST/$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+
+# ==========================================
+# 4. Deploy Stage
+# ==========================================
 #deploy:staging:
 #  stage: deploy
 #  image: alpine:latest
 #  before_script:
-#    # 安裝部署必備工具（例如 ssh-agent 或是 kubectl）
 #    - apk add --no-cache openssh-client
 #    - eval $(ssh-agent -s)
-#    # 將 GitLab Variables 裡的私鑰寫入 CI 環境中
 #    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-#    - mkdir -p ~/.ssh
-#    - chmod 700 ~/.ssh
-#    # 避免 SSH 首次連線時的互動式確認
+#    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
 #    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 #  script:
-#    - echo "正在連線測試環境伺服器進行遠端部署..."
-#    # 範例：連線到你的基礎設施伺服器，重啟 Docker Compose
+#    - echo "正在連線測試環境伺服器進行遠端 DAG 還原..."
 #    - |
 #      ssh user@staging-server.local "
-#        cd /home/user/git_project/PG-Infrastructure/infra/docker-compose &&
-#        docker compose pull &&
-#        docker compose up -d --force-recreate
-#      "
-#  environment:
-#    name: staging
-#    url: http://staging-server.local:8085
-#  rules:
-#    - if: '$CI_COMMIT_BRANCH == "develop"' # Develop 分支自動部署到 Staging
+#        # 1. 強制向 Registry 檢查並拉取最新映像檔（即使本地已有 develop 標籤）
+#        docker compose pull --include-deps
 #
-#deploy:production:
-#  stage: deploy
-#  image: alpine:latest
-#  script:
-#    - echo "正在將版本 $CI_COMMIT_SHORT_SHA 部署至生產環境..."
-#    # 生產環境通常會改為手動觸發（when: manual），或者與 GitOps 機制（ArgoCD）聯動
-#  environment:
-#    name: production
+#        # 2. 強制重啟容器，並重建有變動的服務
+#        docker compose up -d --force-recreate
+#
+#        echo '✅ 地端 DAGs 已成功由映像檔還原與覆蓋完成！'
+#      "
 #  rules:
 #    - if: '$CI_COMMIT_BRANCH == "main"'
-#      when: manual # 在 Main 分支上，必須由工程師上 GitLab 介面手動點選「Play」才會部署
+#    - if: '$CI_COMMIT_BRANCH == "develop"'

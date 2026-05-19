@@ -17,7 +17,6 @@ variables:
 
   # 專案映像檔名稱
   IMAGE_NAME: "airflow-dags"
-  IMAGE_TAG: "v1"
 
   # 透過 GitLab 變數控管 Registry 位址
 #  REGISTRY_HOST: "host.docker.internal:5100"
@@ -106,14 +105,14 @@ build:docker:
     DOCKER_HOST: "tcp://docker:2375"
     DOCKER_CMD_ARGUMENTS: "--insecure-registry=$REGISTRY_HOST"
   before_script:
-    # 若私有 Registry 需要登入...
+    # 若私有 Registry 需要登入 ...
     # - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $REGISTRY_HOST
 
-    - echo "Starting Docker Build Pipeline..."
+    - echo "Starting Docker Build Pipeline ..."
 
     # [等待機制] 確保 Docker Daemon 真的活過來了才往下走
     - |
-      echo "⏳ 等待 Docker Daemon 啟動..."
+      echo "⏳ 等待 Docker Daemon 啟動 ..."
       for i in $(seq 1 30); do
         if docker info >/dev/null 2>&1; then
           echo "✅ Docker Daemon 已成功就緒！"
@@ -125,7 +124,7 @@ build:docker:
 
     # [ https => http ] 強行對 DinD 服務容器塞入 daemon.json 設定
     - |
-      echo "強制將 HTTP 白名單寫入 Docker Daemon 設定..."
+      echo "強制將 HTTP 白名單寫入 Docker Daemon 設定 ..."
       # 透過 docker 內部指令，直接把設定檔寫進名為 docker 的 service 容器中
       cat << EOF > my_daemon.json
       {
@@ -135,34 +134,42 @@ build:docker:
       # 檔案 (my_daemon.json) 掛載並複製過去
       docker run --rm -v /etc/docker:/host_docker -v $(pwd)/my_daemon.json:/tmp/daemon.json alpine cp /tmp/daemon.json /host_docker/daemon.json
 
-      echo "通知 Docker Daemon 重新載入設定..."
+      echo "通知 Docker Daemon 重新載入設定 ..."
       # 共用宿主機 PID 空間，精準對 PID 1 (Docker Daemon) 發送 HUP 訊號
       docker run --rm --pid=host alpine kill -s HUP 1 || echo "⚠️ 熱重啟失敗，將嘗試直接硬推"
 
     - |
-      echo "驗證不安全倉庫 (Insecure Registries) 設定..."
+      echo "驗證不安全倉庫 (Insecure Registries) 設定 ..."
       sleep 3
-      docker info | grep -i "Insecure Registries" -A 2 || echo "⚠️ 沒抓到白名單資訊，但直接試推..."
+      docker info | grep -i "Insecure Registries" -A 2 || echo "⚠️ 沒抓到白名單資訊，但直接試推 ..."
 
   script:
-    # 定義 Tag 名稱：Main 分支用 Commit SHA，其餘分支用分支 slug 名稱
     - |
       if [ "$CI_COMMIT_BRANCH" == "main" ]; then
-        IMAGE_TAG=$CI_COMMIT_SHORT_SHA
+        IMAGE_TAG="latest"
       else
         IMAGE_TAG=$CI_COMMIT_REF_SLUG
       fi
-    - FULL_IMAGE_PATH="$REGISTRY_HOST/$IMAGE_NAME:$IMAGE_TAG"
 
-    # 1. 進行 Docker Build
-    - docker build -t $FULL_IMAGE_PATH .
+      # 定義兩種路徑
+      COMMIT_IMAGE_PATH="$REGISTRY_HOST/$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+      STABLE_IMAGE_PATH="$REGISTRY_HOST/$IMAGE_NAME:$IMAGE_TAG"
 
-    # 2. 推送到私有 Registry
-    - docker push $FULL_IMAGE_PATH
-
-    # 3. 同時留下一份帶有最新 Commit SHA 的 Tag 作為版本歷史追蹤紀錄
-    - docker tag $FULL_IMAGE_PATH "$REGISTRY_HOST/$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
-    - docker push "$REGISTRY_HOST/$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+      echo "📦 正在編譯映像檔並打上雙標籤 ..."
+      echo "  - 歷史標籤: $COMMIT_IMAGE_PATH"
+      echo "  - 部署標籤: $STABLE_IMAGE_PATH"
+      
+      # 1. 進行 Docker Build (編譯並同時打上兩個標籤)
+      docker build -t $COMMIT_IMAGE_PATH -t $STABLE_IMAGE_PATH .
+      
+      echo "🔄 正在推送到地端私有 Registry ..."
+      # 2. 推送 Commit SHA 版（留作歷史備份與紀錄）
+      docker push $COMMIT_IMAGE_PATH
+      
+      # 3. 推送 Stable 版（給 docker-compose 用的固定標籤）
+      docker push $STABLE_IMAGE_PATH
+      
+      echo "✅ 推送成功"
 
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
@@ -172,27 +179,37 @@ build:docker:
 # ==========================================
 # 4. Deploy Stage
 # ==========================================
-#deploy:staging:
-#  stage: deploy
-#  image: alpine:latest
-#  before_script:
-#    - apk add --no-cache openssh-client
+deploy:staging:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    # Local
+    - apk add --no-cache make
+
+    # SSH
+#    - apk add --no-cache openssh-client make
 #    - eval $(ssh-agent -s)
 #    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
 #    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
 #    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
-#  script:
-#    - echo "正在連線測試環境伺服器進行遠端 DAG 還原..."
+  script:
+    - echo "正在連線伺服器進行遠端 DAG 還原 ..."
 #    - |
 #      ssh user@staging-server.local "
-#        # 1. 強制向 Registry 檢查並拉取最新映像檔（即使本地已有 develop 標籤）
-#        docker compose pull --include-deps
-#
-#        # 2. 強制重啟容器，並重建有變動的服務
-#        docker compose up -d --force-recreate
-#
-#        echo '✅ 地端 DAGs 已成功由映像檔還原與覆蓋完成！'
+#        echo '📂 進入專案目錄...' && \
+#        cd ~/git_project/PG-Infrastructure/infra/docker-compose && \
+#        \
+#        echo '🔄 執行 Makefile 自動化重啟與拉取...' && \
+#        make airflow action=restart && \
+#        \
+#        echo '✅ 地端 Airflow 服務已成功由最新映像檔還原與覆蓋！'
 #      "
-#  rules:
-#    - if: '$CI_COMMIT_BRANCH == "main"'
-#    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - |
+      cd /docker-compose
+      echo "🔄 執行本機路徑下的 Makefile 機制 ..."
+      make airflow action=restart
+      echo "✅ Airflow 服務 => 完成重啟"
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'

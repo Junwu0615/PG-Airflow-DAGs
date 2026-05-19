@@ -194,6 +194,7 @@ deploy:staging:
       cd /docker-compose
       echo "🔄 執行本機路徑下的 Makefile 機制 ..."
       make airflow-hot-update
+      sleep 10
       echo "✅ Airflow 服務 => 完成熱更新"
 
   rules:

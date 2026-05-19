@@ -2,8 +2,8 @@
 # 階段任務 (Stages)
 # ==========================================
 stages:
-#  - lint       # 程式碼品質與靜態檢查
-#  - test       # 單元測試與整合測試
+  - lint       # 程式碼品質與靜態檢查
+  - test       # 單元測試與整合測試
   - build      # 打包成映像檔並推送到 Registry
   - deploy     # 部署到測試或生產環境
 
@@ -14,6 +14,10 @@ stages:
 variables:
   # Python 基礎映像檔版本
   PYTHON_IMAGE: "python:3.12-slim"
+
+  # Build & Deploy
+  DOCKER_IMAGE: "docker:24.0.5"
+  DOCKER_DIND_IMAGE: "docker:24.0.5-dind"
 
   # 專案映像檔名稱
   IMAGE_NAME: "airflow-dags"
@@ -38,56 +42,56 @@ cache:
 # ==========================================
 # 1. Lint Stage (程式碼品質檢查)
 # ==========================================
-#lint:python:
-#  stage: lint
-#  image: $PYTHON_IMAGE
-#  before_script:
-#    - python -V
-#    # 安裝 pre-commit（被快取，下次速度極快）
-#    - pip install pre-commit
-#
-#  script:
-#    # 1. pre-commit 內部需要 git 指令來判斷哪些檔案有改動
-#    - which git || (apt-get update && apt-get install -y git)
-#    # 2. 執行 pre-commit 檢查所有檔案
-#    - pre-commit run --all-files
-#
-#  allow_failure: false # 若檢查不通過，直接阻斷後續 Pipeline
+lint:python:
+  stage: lint
+  image: $PYTHON_IMAGE
+  before_script:
+    - python -V
+    # 安裝 pre-commit（被快取，下次速度極快）
+    - pip install pre-commit
+
+  script:
+    # 1. pre-commit 內部需要 git 指令來判斷哪些檔案有改動
+    - which git || (apt-get update && apt-get install -y git)
+    # 2. 執行 pre-commit 檢查所有檔案
+    - pre-commit run --all-files
+
+  allow_failure: false # 若檢查不通過，直接阻斷後續 Pipeline
 
 
 # ==========================================
 # 2. Test Stage (自動化測試)
 # ==========================================
-#test:unit:
-#  stage: test
-#  image: $PYTHON_IMAGE
-#  before_script:
-#    # sqlite => Airflow 測試底層依賴
-#    - apt-get update && apt-get install -y sqlite3 libsqlite3-dev
-#    - pip install --cache-dir .cache/pip -r requirements.txt
-#    - pip install --cache-dir .cache/pip pytest pytest-cov
-#  script:
-#    # 1. 設定 PYTHONPATH 使測試腳本找得到 dags
-#    - export PYTHONPATH=.:dags
-#
-#    # 2. 讓 Airflow 在測試時使用當前目錄作為主目錄，避免去污染系統路徑
-#    - export AIRFLOW_HOME=$(pwd)/.airflow
-#
-#    # 3. 執行 pytest 測試 tests/ 目錄
-#    - pytest --cov=dags tests/ --cov-report=term-missing
-#
-#  coverage: '/(?i)total.*?([\d\.]+)%/'
-#  artifacts:
-#    name: "coverage-report-$CI_COMMIT_REF_NAME"
-#    paths:
-#      - htmlcov/ # 如果 pytest 沒產生，可以先註解掉或保留
-#
-#    expire_in: 1 week
-#
-#  rules:
-#    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-#    - if: '$CI_COMMIT_BRANCH == "main"'
-#    - if: '$CI_COMMIT_BRANCH == "develop"'
+test:unit:
+  stage: test
+  image: $PYTHON_IMAGE
+  before_script:
+    # sqlite => Airflow 測試底層依賴
+    - apt-get update && apt-get install -y sqlite3 libsqlite3-dev
+    - pip install --cache-dir .cache/pip -r requirements.txt
+    - pip install --cache-dir .cache/pip pytest pytest-cov
+  script:
+    # 1. 設定 PYTHONPATH 使測試腳本找得到 dags
+    - export PYTHONPATH=.:dags
+
+    # 2. 讓 Airflow 在測試時使用當前目錄作為主目錄，避免去污染系統路徑
+    - export AIRFLOW_HOME=$(pwd)/.airflow
+
+    # 3. 執行 pytest 測試 tests/ 目錄
+    - pytest --cov=dags tests/ --cov-report=term-missing
+
+  coverage: '/(?i)total.*?([\d\.]+)%/'
+  artifacts:
+    name: "coverage-report-$CI_COMMIT_REF_NAME"
+    paths:
+      - htmlcov/ # 如果 pytest 沒產生，可以先註解掉或保留
+
+    expire_in: 1 week
+
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
 
 
 # ==========================================
@@ -95,9 +99,9 @@ cache:
 # ==========================================
 build:docker:
   stage: build
-  image: "docker:24.0.5"
+  image: $DOCKER_IMAGE
 #  services:
-#    - name: "docker:24.0.5-dind"
+#    - name: $DOCKER_DIND_IMAGE
 #      alias: docker
       # 開機指令注入通用變數 (需要 config.toml 支援)
 #      command: ["--insecure-registry", "$REGISTRY_HOST"]
@@ -190,7 +194,7 @@ build:docker:
 # ==========================================
 deploy:staging:
   stage: deploy
-  image: alpine:latest
+  image: $DOCKER_IMAGE
   before_script:
     # Local
     - apk add --no-cache make
@@ -217,11 +221,11 @@ deploy:staging:
       cd /docker-compose
       echo "🔄 執行本機路徑下的 Makefile 機制 ..."
       
-      make airflow action=restart
-      echo "✅ Airflow 服務 => 完成重啟"
+#      make airflow action=restart
+#      echo "✅ Airflow 服務 => 完成重啟"
 
-#      make airflow-hot-update
-#      echo "✅ Airflow 服務 => 完成熱更新"
+      make airflow-hot-update
+      echo "✅ Airflow 服務 => 完成熱更新"
 
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'

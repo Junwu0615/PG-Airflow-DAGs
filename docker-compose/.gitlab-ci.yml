@@ -12,12 +12,8 @@ stages:
 # 全局全域設定 (Global Settings)
 # ==========================================
 variables:
-  # 指定 Python 基礎映像檔版本
+  # Python 基礎映像檔版本
   PYTHON_IMAGE: "python:3.12-slim"
-
-  # 指定 Docker-in-Docker 版本（ Build 階段 ）
-  DOCKER_IMAGE: "docker:24.0.5"
-  DOCKER_DIND_IMAGE: "docker:24.0.5-dind"
 
   # 專案映像檔名稱
   IMAGE_NAME: "airflow-dags"
@@ -100,19 +96,21 @@ test:unit:
 # ==========================================
 build:docker:
   stage: build
-  image: $DOCKER_IMAGE
+  image: "docker:24.0.5"
   services:
-    - name: $DOCKER_DIND_IMAGE
+    - name: "docker:24.0.5-dind"
       alias: docker
-      command: ["--insecure-registry=host.docker.internal:5100"]
   variables:
     # 解決 DIND 環境下的 TLS 認證問題
     DOCKER_TLS_CERTDIR: ""
     DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_CMD_ARGUMENTS: "--insecure-registry=$REGISTRY_HOST"
   before_script:
-    # 如果你的私有 Registry 需要登入，請在這裡填寫（若無則免）
+    # 若私有 Registry 需要登入...
     # - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $REGISTRY_HOST
+
     - echo "Starting Docker Build Pipeline..."
+
     # [等待機制] 確保 Docker Daemon 真的活過來了才往下走
     - |
       echo "⏳ 等待 Docker Daemon 啟動..."
@@ -124,6 +122,28 @@ build:docker:
         echo "..."
         sleep 1
       done
+
+    # [ https => http ] 強行對 DinD 服務容器塞入 daemon.json 設定
+    - |
+      echo "強制將 HTTP 白名單寫入 Docker Daemon 設定..."
+      # 透過 docker 內部指令，直接把設定檔寫進名為 docker 的 service 容器中
+      cat << EOF > my_daemon.json
+      {
+        "insecure-registries": ["$REGISTRY_HOST"]
+      }
+      EOF
+      # 檔案 (my_daemon.json) 掛載並複製過去
+      docker run --rm -v /etc/docker:/host_docker -v $(pwd)/my_daemon.json:/tmp/daemon.json alpine cp /tmp/daemon.json /host_docker/daemon.json
+
+      echo "通知 Docker Daemon 重新載入設定..."
+      # 共用宿主機 PID 空間，精準對 PID 1 (Docker Daemon) 發送 HUP 訊號
+      docker run --rm --pid=host alpine kill -s HUP 1 || echo "⚠️ 熱重啟失敗，將嘗試直接硬推"
+
+    - |
+      echo "驗證不安全倉庫 (Insecure Registries) 設定..."
+      sleep 3
+      docker info | grep -i "Insecure Registries" -A 2 || echo "⚠️ 沒抓到白名單資訊，但直接試推..."
+
   script:
     # 定義 Tag 名稱：Main 分支用 Commit SHA，其餘分支用分支 slug 名稱
     - |
@@ -143,6 +163,7 @@ build:docker:
     # 3. 同時留下一份帶有最新 Commit SHA 的 Tag 作為版本歷史追蹤紀錄
     - docker tag $FULL_IMAGE_PATH "$REGISTRY_HOST/$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
     - docker push "$REGISTRY_HOST/$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'

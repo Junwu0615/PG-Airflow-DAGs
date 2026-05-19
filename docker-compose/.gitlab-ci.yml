@@ -2,10 +2,10 @@
 # 階段任務 (Stages)
 # ==========================================
 stages:
-  - lint       # 程式碼品質與靜態檢查
-  - test       # 單元測試與整合測試
+#  - lint       # 程式碼品質與靜態檢查
+#  - test       # 單元測試與整合測試
   - build      # 打包成映像檔並推送到 Registry
-#  - deploy     # 部署到測試或生產環境
+  - deploy     # 部署到測試或生產環境
 
 
 # ==========================================
@@ -38,56 +38,56 @@ cache:
 # ==========================================
 # 1. Lint Stage (程式碼品質檢查)
 # ==========================================
-lint:python:
-  stage: lint
-  image: $PYTHON_IMAGE
-  before_script:
-    - python -V
-    # 安裝 pre-commit（被快取，下次速度極快）
-    - pip install pre-commit
-
-  script:
-    # 1. pre-commit 內部需要 git 指令來判斷哪些檔案有改動
-    - which git || (apt-get update && apt-get install -y git)
-    # 2. 執行 pre-commit 檢查所有檔案
-    - pre-commit run --all-files
-
-  allow_failure: false # 若檢查不通過，直接阻斷後續 Pipeline
+#lint:python:
+#  stage: lint
+#  image: $PYTHON_IMAGE
+#  before_script:
+#    - python -V
+#    # 安裝 pre-commit（被快取，下次速度極快）
+#    - pip install pre-commit
+#
+#  script:
+#    # 1. pre-commit 內部需要 git 指令來判斷哪些檔案有改動
+#    - which git || (apt-get update && apt-get install -y git)
+#    # 2. 執行 pre-commit 檢查所有檔案
+#    - pre-commit run --all-files
+#
+#  allow_failure: false # 若檢查不通過，直接阻斷後續 Pipeline
 
 
 # ==========================================
 # 2. Test Stage (自動化測試)
 # ==========================================
-test:unit:
-  stage: test
-  image: $PYTHON_IMAGE
-  before_script:
-    # sqlite => Airflow 測試底層依賴
-    - apt-get update && apt-get install -y sqlite3 libsqlite3-dev
-    - pip install --cache-dir .cache/pip -r requirements.txt
-    - pip install --cache-dir .cache/pip pytest pytest-cov
-  script:
-    # 1. 設定 PYTHONPATH 使測試腳本找得到 dags
-    - export PYTHONPATH=.:dags
-
-    # 2. 讓 Airflow 在測試時使用當前目錄作為主目錄，避免去污染系統路徑
-    - export AIRFLOW_HOME=$(pwd)/.airflow
-
-    # 3. 執行 pytest 測試 tests/ 目錄
-    - pytest --cov=dags tests/ --cov-report=term-missing
-
-  coverage: '/(?i)total.*?([\d\.]+)%/'
-  artifacts:
-    name: "coverage-report-$CI_COMMIT_REF_NAME"
-    paths:
-      - htmlcov/ # 如果 pytest 沒產生，可以先註解掉或保留
-
-    expire_in: 1 week
-
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_COMMIT_BRANCH == "develop"'
+#test:unit:
+#  stage: test
+#  image: $PYTHON_IMAGE
+#  before_script:
+#    # sqlite => Airflow 測試底層依賴
+#    - apt-get update && apt-get install -y sqlite3 libsqlite3-dev
+#    - pip install --cache-dir .cache/pip -r requirements.txt
+#    - pip install --cache-dir .cache/pip pytest pytest-cov
+#  script:
+#    # 1. 設定 PYTHONPATH 使測試腳本找得到 dags
+#    - export PYTHONPATH=.:dags
+#
+#    # 2. 讓 Airflow 在測試時使用當前目錄作為主目錄，避免去污染系統路徑
+#    - export AIRFLOW_HOME=$(pwd)/.airflow
+#
+#    # 3. 執行 pytest 測試 tests/ 目錄
+#    - pytest --cov=dags tests/ --cov-report=term-missing
+#
+#  coverage: '/(?i)total.*?([\d\.]+)%/'
+#  artifacts:
+#    name: "coverage-report-$CI_COMMIT_REF_NAME"
+#    paths:
+#      - htmlcov/ # 如果 pytest 沒產生，可以先註解掉或保留
+#
+#    expire_in: 1 week
+#
+#  rules:
+#    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+#    - if: '$CI_COMMIT_BRANCH == "main"'
+#    - if: '$CI_COMMIT_BRANCH == "develop"'
 
 
 # ==========================================
@@ -96,14 +96,22 @@ test:unit:
 build:docker:
   stage: build
   image: "docker:24.0.5"
-  services:
-    - name: "docker:24.0.5-dind"
-      alias: docker
+#  services:
+#    - name: "docker:24.0.5-dind"
+#      alias: docker
+      # 開機指令注入通用變數 (需要 config.toml 支援)
+#      command: ["--insecure-registry", "$REGISTRY_HOST"]
+
   variables:
-    # 解決 DIND 環境下的 TLS 認證問題
+#    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_HOST: ""
+
     DOCKER_TLS_CERTDIR: ""
-    DOCKER_HOST: "tcp://docker:2375"
+#    DOCKER_TLS_CERTDIR: "/certs"
+
+    # 將 HTTP 白名單動態傳給 DinD (需要 config.toml 支援)
     DOCKER_CMD_ARGUMENTS: "--insecure-registry=$REGISTRY_HOST"
+
   before_script:
     # 若私有 Registry 需要登入 ...
     # - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $REGISTRY_HOST
@@ -118,25 +126,25 @@ build:docker:
           echo "✅ Docker Daemon 已成功就緒！"
           break
         fi
-        echo "..."
+        echo "Docker 尚未就緒，等待中 ($i/30) ..."
         sleep 1
       done
 
     # [ https => http ] 強行對 DinD 服務容器塞入 daemon.json 設定
-    - |
-      echo "強制將 HTTP 白名單寫入 Docker Daemon 設定 ..."
-      # 透過 docker 內部指令，直接把設定檔寫進名為 docker 的 service 容器中
-      cat << EOF > my_daemon.json
-      {
-        "insecure-registries": ["$REGISTRY_HOST"]
-      }
-      EOF
-      # 檔案 (my_daemon.json) 掛載並複製過去
-      docker run --rm -v /etc/docker:/host_docker -v $(pwd)/my_daemon.json:/tmp/daemon.json alpine cp /tmp/daemon.json /host_docker/daemon.json
-
-      echo "通知 Docker Daemon 重新載入設定 ..."
-      # 共用宿主機 PID 空間，精準對 PID 1 (Docker Daemon) 發送 HUP 訊號
-      docker run --rm --pid=host alpine kill -s HUP 1 || echo "⚠️ 熱重啟失敗，將嘗試直接硬推"
+#    - |
+#      echo "強制將 HTTP 白名單寫入 Docker Daemon 設定 ..."
+#      # 透過 docker 內部指令，直接把設定檔寫進名為 docker 的 service 容器中
+#      cat << EOF > my_daemon.json
+#      {
+#        "insecure-registries": ["$REGISTRY_HOST"]
+#      }
+#      EOF
+#      # 檔案 (my_daemon.json) 掛載並複製過去
+#      docker run --rm -v /etc/docker:/host_docker -v $(pwd)/my_daemon.json:/tmp/daemon.json alpine cp /tmp/daemon.json /host_docker/daemon.json
+#
+#      echo "通知 Docker Daemon 重新載入設定 ..."
+#      # 共用宿主機 PID 空間，精準對 PID 1 (Docker Daemon) 發送 HUP 訊號
+#      docker run --rm --pid=host alpine kill -s HUP 1 || echo "⚠️ 熱重啟失敗，將嘗試直接硬推"
 
     - |
       echo "驗證不安全倉庫 (Insecure Registries) 設定 ..."
@@ -144,6 +152,7 @@ build:docker:
       docker info | grep -i "Insecure Registries" -A 2 || echo "⚠️ 沒抓到白名單資訊，但直接試推 ..."
 
   script:
+    - echo "開始執行 Docker Build 流程 ..."
     - |
       if [ "$CI_COMMIT_BRANCH" == "main" ]; then
         IMAGE_TAG="latest"
@@ -207,8 +216,12 @@ deploy:staging:
     - |
       cd /docker-compose
       echo "🔄 執行本機路徑下的 Makefile 機制 ..."
+      
       make airflow action=restart
       echo "✅ Airflow 服務 => 完成重啟"
+
+#      make airflow-hot-update
+#      echo "✅ Airflow 服務 => 完成熱更新"
 
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'

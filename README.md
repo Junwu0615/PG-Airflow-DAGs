@@ -103,4 +103,17 @@ make copy-dag
     pre-commit run --all-files
     ```
 
+<br>
+
+### *D.　CI / CD*
+```
+傳統模式 (\docker-compose\.gitlab-ci.yml)
+模式: 基於"流程"
+特點: 須打包映像檔 + 依賴制定腳本流程 + 相對唯一事實 + 安全性較低
+
+GitOps 模式
+模式: 基於"狀態"
+特點: 不須打包映像檔 + 不須定義 build & Deploy + 可兼顧卡控 play + 絕對唯一事實 + 安全性極高
+```
+
 <br><br><br>

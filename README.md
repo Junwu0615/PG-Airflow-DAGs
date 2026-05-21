@@ -107,13 +107,24 @@ make copy-dag
 
 ### *D.　CI / CD*
 ```
-傳統模式 (\docker-compose\.gitlab-ci.yml)
-模式: 基於"流程"
-特點: 須打包映像檔 + 依賴制定腳本流程 + 相對唯一事實 + 安全性較低
+* 傳統模式 (\docker-compose\.gitlab-ci.yml)
+  模式 : 基於"流程"
+  特點 : 
+    須打包映像檔
+    依賴制定腳本流程
+    可兼顧卡控 play
+    相對唯一事實
+    安全性較低
 
-GitOps 模式
-模式: 基於"狀態"
-特點: 不須打包映像檔 + 不須定義 build & Deploy + 可兼顧卡控 play + 絕對唯一事實 + 安全性極高
+* GitOps 模式 (\k8s\.gitlab-ci.yml)
+  模式 : 基於"狀態"
+  特點 : 
+    不須打包映像檔
+    不須定義 build & Deploy
+    可兼顧卡控 play
+    絕對唯一事實
+    安全性極高
+    完全不依賴維運團隊(開發維運實質上不分家)
 ```
 
 <br><br><br>

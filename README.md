@@ -7,7 +7,7 @@
 ### *A.　Roadmap*
 
 <details>
-<summary><b><i>　Project Tree </i></b></summary>
+<summary><b><i>　Tree </i></b></summary>
 <ul>
 
 ```bash
@@ -105,7 +105,7 @@ make copy-dag
 
 <br>
 
-### *D.　CI / CD*
+### *D.　CI/CD*
 ```
 * 傳統模式 (\docker-compose\.gitlab-ci.yml)
   模式 : 基於"流程"

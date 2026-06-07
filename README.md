@@ -4,15 +4,14 @@
 
 <br>
 
-### *A.　Roadmap*
+### *A.　Implement*
 
 <details>
 <summary><b><i>　Tree </i></b></summary>
 <ul>
 
 ```bash
-tree -I 'venv|.git|__pycache__|docs|logs|assets|kafka_data'
-tree -d -I 'venv|.git|__pycache__|docs|logs|assets|kafka_data'
+tree -I 'venv|.git|__pycache__|docs|logs|assets|kafka_data|charts'
 
 .
 ├── README.md
@@ -72,7 +71,7 @@ make copy-dag
 <br>
 
 ### *C.　Push Code*
-- #### *c.1.　Manual => Not Recommended*
+- #### *c.1.　Manual → Not Recommended*
     ```bash
     # <語法格式版本>
     black --version
@@ -84,7 +83,7 @@ make copy-dag
     # ?? files left unchanged.
     ```
 
-- #### *c.2.　Auto => Recommended*
+- #### *c.2.　Auto → Recommended*
     ```bash
     # 全域設定 ( 一次性 )
         # 1. 透過 Ubuntu 系統套件管理員安裝 pipx
@@ -102,29 +101,5 @@ make copy-dag
     # ⭐ 強制檢查
     pre-commit run --all-files
     ```
-
-<br>
-
-### *D.　CI/CD*
-```
-* 傳統模式 (\docker-compose\.gitlab-ci.yml)
-  模式 : 基於"流程"
-  特點 : 
-    須打包映像檔
-    依賴制定腳本流程
-    可兼顧卡控 play
-    相對唯一事實
-    安全性較低
-
-* GitOps 模式 (\k8s\.gitlab-ci.yml)
-  模式 : 基於"狀態"
-  特點 : 
-    不須打包映像檔
-    不須定義 build & Deploy
-    可兼顧卡控 play
-    絕對唯一事實
-    安全性極高
-    完全不依賴維運團隊(開發維運實質上不分家)
-```
 
 <br><br><br>

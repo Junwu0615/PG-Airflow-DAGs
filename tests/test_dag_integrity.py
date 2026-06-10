@@ -6,7 +6,7 @@ def test_dag_loading_and_integrity():
     """
     通用測試：檢查所有 DAG 是否能被 Airflow 正常載入，且沒有語法錯誤、循環依賴
     """
-    # 1. 讓 DagBag 去讀取 dags 目錄
+    # 1. DagBag 讀取 dags 目錄
     dag_path = os.path.join(os.path.dirname(__file__), "..", "dags")
 
     # 載入該目錄下的所有 DAG
